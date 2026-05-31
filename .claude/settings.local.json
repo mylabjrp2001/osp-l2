@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(brew --version)",
+      "Bash(brew install *)",
+      "Bash(pdftoppm -v)",
+      "Bash(mkdir -p \"/tmp/pdf_pages\")",
+      "Bash(pdftoppm -png -r 100 \"/Users/bankjrp/Desktop/Power bi/Monthly report March 2026.pdf\" \"/tmp/pdf_pages/page\")",
+      "Read(//tmp/**)",
+      "Bash(python3 -c \"import openpyxl; print\\('openpyxl', openpyxl.__version__\\)\")",
+      "Bash(pip3 install *)",
+      "Bash(python3)",
+      "Bash(python3 etl/build_data.py)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"data.json: %{http_code}, %{size_download} bytes\\\\n\" http://localhost:5173/data.json)",
+      "Bash(curl -s http://localhost:5173/src/main.jsx)",
+      "Bash(curl -s http://localhost:5173/src/App.jsx)",
+      "Bash(curl -s -o /dev/null -w \"Dev server: %{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(npx --yes puppeteer)",
+      "Bash(node etl/smoketest.mjs)",
+      "Bash(node etl/crop_all.mjs)",
+      "Bash(node etl/check_p9.mjs)",
+      "Bash(node etl/crop_p11.mjs)",
+      "Bash(node etl/check_p6_new.mjs)",
+      "Bash(node etl/p11_row1.mjs)",
+      "Bash(node etl/check_donut.mjs)",
+      "Bash(node etl/donut_clip.mjs)",
+      "Bash(node etl/check_p19.mjs)",
+      "Bash(node etl/check_p21.mjs)",
+      "Bash(node etl/check_cover2.mjs)"
+    ]
+  }
+}
