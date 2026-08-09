@@ -5,6 +5,9 @@ import { FilterProvider } from "./filters.jsx";
 import FilterBar from "./components/FilterBar.jsx";
 import UploadPanel from "./components/UploadPanel.jsx";
 import { captureAllPages, exportToPDF, exportToPPTX } from "./export.js";
+import { usePath, navigate, isAllCompanyPath, allCompanySlug } from "./router.js";
+import AllCompanyArea from "./allcompany/AllCompanyArea.jsx";
+import { ALLCO_NAV, urlForSlug } from "./allcompany/nav.js";
 
 import Page02 from "./pages/Page02_JobTotalInZone.jsx";
 import Page03 from "./pages/Page03_PriorityAllZone.jsx";
@@ -69,7 +72,23 @@ const ALL_PAGES = [...NAV, ...DASH];
 
 export default function App() {
   const { loading, data, error } = useData();
+  const path = usePath();
+  const onAllCompany = isAllCompanyPath(path);
+  const allCoActiveId = onAllCompany
+    ? (ALLCO_NAV.find((x) => x.slug === allCompanySlug(path)) || ALLCO_NAV[0]).id
+    : null;
   const [activeId, setActiveId] = usePersistedState("dmp.activeId.v1", "p1");
+
+  // Sidebar pick: all-company sub-pages route by URL; DMP pages use activeId.
+  const handlePick = (id) => {
+    const allco = ALLCO_NAV.find((x) => x.id === id);
+    if (allco) {
+      navigate(urlForSlug(allco.slug));
+      return;
+    }
+    if (onAllCompany) navigate("/");
+    setActiveId(id);
+  };
   const [present, setPresent] = useState(false);
   const [exportState, setExportState] = useState(null); // { kind, i, total, label } | null
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -184,9 +203,10 @@ export default function App() {
           sections={[
             { title: "Monthly Report", subtitle: "21 รายงาน · Team Performance", items: NAV },
             { title: "Dashboard (หลังบ้าน)", subtitle: "Solution / Pending data", items: DASH, accent: "#3498DB" },
+            { title: "ทุกบริษัท", subtitle: "All companies · ตัวกรองบริษัท/ช่าง", items: ALLCO_NAV, accent: "#E67E22" },
           ]}
-          activeId={activeId}
-          onPick={setActiveId}
+          activeId={onAllCompany ? allCoActiveId : activeId}
+          onPick={handlePick}
         />
         <main
           style={{
@@ -203,10 +223,16 @@ export default function App() {
             onUpload={() => setUploadOpen(true)}
             exporting={!!exportState}
           />
-          <FilterBar />
-          <div ref={exportTargetRef}>
-            <Active records={data.records} />
-          </div>
+          {onAllCompany ? (
+            <AllCompanyArea records={data.records} />
+          ) : (
+            <>
+              <FilterBar />
+              <div ref={exportTargetRef}>
+                <Active records={data.records} />
+              </div>
+            </>
+          )}
           <footer
             style={{
               marginTop: 32,
