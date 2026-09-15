@@ -1,0 +1,23 @@
+# DMP Monthly Report (osp-l2) — prod บน baanmefai 176.80.40.4  (ย้ายมาจาก pm2 บน Mac mini 16 ก.ย. 2026)
+# ทางเข้า: Cloudflare Tunnel (บัญชี 64b63ea2…) l2.workproth.com → http://localhost:8000
+# data จริง (Excel + data.json) อยู่นอก git ที่ /srv/data/dmp-report — ห้ามลบ ห้าม down -v
+# deploy:  cd /srv/apps/osp-l2 && git pull && docker compose up -d --build dmp-report
+name: dmp-report
+services:
+  dmp-report:
+    build:
+      context: ./dmp-monthly-report
+    image: dmp-report:latest
+    container_name: dmp-report
+    environment:
+      TZ: Asia/Bangkok
+      DMP_STORAGE: /data
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - ${DATA_DIR:-/srv/data/dmp-report}:/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4g

@@ -54,7 +54,20 @@ python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
 npm run dev:all      # รัน vite + uvicorn คู่กัน (Ctrl+C ปิดทั้งคู่)
 ```
 
-### Deploy บน Windows VPS
+### Deploy บน prod (baanmefai `176.80.40.4`)
+
+ตั้งแต่ 16 ก.ย. 2026 ของจริงรันเป็น **Docker Compose** บน baanmefai ไม่ใช่ pm2 บน Mac mini แล้ว
+ขั้นตอนเต็มอยู่ที่ [`deploy/runbooks/deploy.md`](../deploy/runbooks/deploy.md) — ย่อ:
+
+```bash
+ssh baanmefai
+cd /srv/apps/osp-l2 && git pull && docker compose up -d --build dmp-report
+```
+
+โค้ดอยู่ `/srv/apps/osp-l2` · data (Excel + data.json) อยู่ `/srv/data/dmp-report` **นอก git**
+เข้าใช้งานที่ `https://l2.workproth.com` (Cloudflare Tunnel → `localhost:8000`)
+
+### Deploy บน Windows VPS (ของเดิม — เลิกใช้แล้ว)
 
 1. ติดตั้ง Node.js + Python 3.10+
 2. `npm install && npm run build` → ได้ `dist/`
@@ -109,3 +122,10 @@ npm run dev:all      # รัน vite + uvicorn คู่กัน (Ctrl+C ป�
 - "ทีมในโซน" ตรวจจับด้วย pattern `Dmplocal(latkrabang|pathumthani) [A-C]`
 - ตัวเลข SLA% บางหน้าอาจคลาดเคลื่อนจาก PDF เดิม 1–2% จากการนับ blank rows
   ปรับ logic ใน `src/pages/Page22_KPISla.jsx` `teamSla()` ได้
+
+## Push Log
+
+| วันที่ | สิ่งที่เปลี่ยน |
+|---|---|
+| 2026-09-16 | ย้ายจาก pm2 บน Mac mini → Docker Compose บน baanmefai `176.80.40.4` · เพิ่ม `Dockerfile` (multi-stage node build → python:3.12-slim) · `compose.yml` ที่ root · `deploy/runbooks/deploy.md` · `.claude/knowledge/gotchas.md` · data ย้ายไป `/srv/data/dmp-report` |
+| 2026-09-16 | เพิ่มเส้น AVG (ReferenceLine) ในกราฟ Job Done per Day หน้า Total Job Overview |

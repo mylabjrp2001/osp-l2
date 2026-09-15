@@ -109,8 +109,23 @@ numbers matching the original Power BI report:
 - **SLA% may differ ~1–2% from the original PDF** because of how blank rows are counted. The relevant
   logic is `teamSla()` in `src/pages/Page22_KPISla.jsx`.
 
-## Deploying (Windows VPS)
+## Deploying
 
-`npm install && npm run build`, then double-click `server/run.bat` (creates the venv on first run and
-launches uvicorn). Open port 8000 in the firewall; optionally wrap uvicorn as a Windows service with
-NSSM for auto-start. See `dmp-monthly-report/README.md` for the full steps.
+Production runs as **Docker Compose on baanmefai `176.80.40.4`** (moved off pm2 on the Mac mini on
+2026-09-16). Code lives at `/srv/apps/osp-l2`, data at `/srv/data/dmp-report` (outside git).
+
+```bash
+ssh baanmefai
+cd /srv/apps/osp-l2 && git pull && docker compose up -d --build dmp-report
+```
+
+- Full runbook incl. first-time setup, data rsync, rollback and the Cloudflare Tunnel cutover:
+  **`deploy/runbooks/deploy.md`**
+- Traps that have already bitten (data outside git, route ordering in `app.py`, tunnel ownership):
+  **`.claude/knowledge/gotchas.md`**
+- `Dockerfile` is in `dmp-monthly-report/` (it is also the build context, so the 106 MB `Excel Data/`
+  never enters the image); `compose.yml` is at the repo root. No `.env` is needed — `compose.yml`
+  defaults `APP_PORT` to 8000 and `DATA_DIR` to `/srv/data/dmp-report`.
+
+The old Windows-VPS route (`server/run.bat` + NSSM) is retired — steps kept in
+`dmp-monthly-report/README.md` for reference only.
