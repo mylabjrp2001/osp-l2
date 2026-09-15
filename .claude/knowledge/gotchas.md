@@ -45,3 +45,14 @@ compose ตั้ง limit ไว้ 4 GB — ถ้าปีถัดไปไ�
 
 มี `l2.bankjrplab.online` ค้างไว้ ใช้เฉพาะ dev server (`npm run dev`) ไม่เกี่ยวกับ prod
 prod เสิร์ฟ `dist/` ผ่าน uvicorn ล้วน ไม่มี Vite
+
+## note ที่แก้ในหน้ารายงานอยู่ใน localStorage ของเบราว์เซอร์
+
+`src/components/EditableNote.jsx` เก็บลง `localStorage` ไม่ได้ส่งขึ้น server
+→ ตอนย้ายเครื่อง **note ไม่ต้องย้าย** เพราะผูกกับ origin ของโดเมน ไม่ใช่กับเครื่อง
+แต่ถ้าวันไหนเปลี่ยน URL (เช่นไปใช้ `http://176.80.40.4:8000` แทน `https://l2.workproth.com`)
+note ทั้งหมดจะหายไปจากสายตา (ยังอยู่ใน origin เดิม) — เป็นเหตุผลหนึ่งที่ต้องคง
+โดเมนเดิมไว้ตอน cutover
+
+server มีแค่ 4 route (`/api/status`, `/api/upload`, `/api/files/{name}`, `/data.json`)
+ไม่มี state อื่นฝั่ง server นอกจาก `server/storage/` เลย
