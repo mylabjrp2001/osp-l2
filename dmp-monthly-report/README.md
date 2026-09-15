@@ -129,3 +129,4 @@ cd /srv/apps/osp-l2 && git pull && docker compose up -d --build dmp-report
 |---|---|
 | 2026-09-16 | ย้ายจาก pm2 บน Mac mini → Docker Compose บน baanmefai `176.80.40.4` · เพิ่ม `Dockerfile` (multi-stage node build → python:3.12-slim) · `compose.yml` ที่ root · `deploy/runbooks/deploy.md` · `.claude/knowledge/gotchas.md` · data ย้ายไป `/srv/data/dmp-report` |
 | 2026-09-16 | เพิ่มเส้น AVG (ReferenceLine) ในกราฟ Job Done per Day หน้า Total Job Overview |
+| 2026-09-16 | cutover `l2.workproth.com` → tunnel `cloudflared` (`ed36e902…`) บน .4 · ตรวจแล้ว `storage_dir=/data` · pm2 + tunnel เดิมบน Mac mini ยังเปิดไว้เผื่อ rollback |

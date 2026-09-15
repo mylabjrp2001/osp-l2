@@ -47,7 +47,13 @@ ssh baanmefai 'cd /srv/apps/osp-l2 && docker compose stop dmp-report'
 # แล้วเปิด cloudflared + pm2 ฝั่ง Mac mini กลับ (ดู cutover ด้านล่าง)
 ```
 
-## cutover โดเมน `l2.workproth.com`
+## cutover โดเมน `l2.workproth.com` — ทำไปแล้ว 16 ก.ย. 2026 ✅
+
+ตอนนี้ `l2.workproth.com` เป็น **route ที่ 14** ของ tunnel `cloudflared` (`ed36e902…`) บน .4
+ชี้ `http://localhost:8000` · ตรวจแล้ว `/api/status` ตอบ `"storage_dir":"/data"`
+route เดิมบน tunnel `bc1b056d…` ของ Mac mini **ยังไม่ได้ลบ** และ pm2 ที่นั่นยังรันอยู่ (เผื่อ rollback)
+
+ขั้นตอนด้านล่างเก็บไว้อ้างอิงถ้าต้องทำซ้ำ:
 
 โดเมนอยู่ใน **บัญชี Cloudflare `64b63ea2…`** — บัญชีเดียวกับ tunnel `cloudflared`
 (`ed36e902…`) และ `cloudflared-office` (`3632ace6…`) ที่รันบน .4 อยู่แล้ว
