@@ -8,6 +8,7 @@ import {
   CartesianGrid,
   Tooltip,
   Cell,
+  ReferenceLine,
   ResponsiveContainer,
   LabelList,
   PieChart,
@@ -21,7 +22,14 @@ import ChartCard from "../components/ChartCard.jsx";
 import EditableNote from "../components/EditableNote.jsx";
 import { useFilters, applyFilters } from "../filters.jsx";
 import { COLORS, PRIORITY_ORDER, TEAMS } from "../theme.js";
-import { dayOfMonth, pct, fmtPct } from "../utils.js";
+import { dayOfMonth, pct, fmtPct, parseISODate } from "../utils.js";
+
+// Number of calendar days in the filter range (inclusive)
+function rangeDays(startStr, endStr) {
+  const s = parseISODate(startStr);
+  const e = parseISODate(endStr);
+  return Math.max(1, Math.round((e - s) / 86400000) + 1);
+}
 
 const TARGET_MAP = {
   zone: 260, // 260 jobs / zone / month (PDF page 2 target line)
@@ -196,7 +204,7 @@ function JobByPriorityDonut({ records }) {
   );
 }
 
-function JobDonePerDayMini({ records, height = 300 }) {
+function JobDonePerDayMini({ records, avg, height = 300 }) {
   const map = new Map();
   for (const r of records) {
     const d = dayOfMonth(r.d);
@@ -209,6 +217,7 @@ function JobDonePerDayMini({ records, height = 300 }) {
   }
   const data = Array.from(map.values()).sort((a, b) => a.day - b.day);
   for (const r of data) r._total = PRIORITY_ORDER.reduce((s, p) => s + r[p], 0);
+  const hasAvg = Number.isFinite(avg) && avg > 0;
   return (
     <div style={{ display: "flex", flexDirection: "column", height }}>
       <div
@@ -236,6 +245,21 @@ function JobDonePerDayMini({ records, height = 300 }) {
             <span style={{ color: "#1f1f2c", fontWeight: 500 }}>{p}</span>
           </span>
         ))}
+        {hasAvg && (
+          <span
+            style={{
+              marginLeft: "auto",
+              color: COLORS.target,
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span style={{ display: "inline-block", width: 18, height: 0, borderTop: `2px dashed ${COLORS.target}` }} />
+            AVG: {avg.toFixed(2)}
+          </span>
+        )}
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -258,6 +282,15 @@ function JobDonePerDayMini({ records, height = 300 }) {
                 )}
               </Bar>
             ))}
+            {hasAvg && (
+              <ReferenceLine
+                y={avg}
+                stroke={COLORS.target}
+                strokeDasharray="3 3"
+                strokeWidth={2}
+                ifOverflow="extendDomain"
+              />
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -623,6 +656,9 @@ export default function TotalJobOverviewPage({ records, subject }) {
   );
 
   const total = filtered.length;
+  // Average jobs/day over the selected range — matches the "Job Done Per day"
+  // AVG line on the dedicated Job-Per-day pages (total ÷ calendar days in range).
+  const avgPerDay = total / rangeDays(f.start, f.end);
   const teamsToShow =
     subject.kind === "zone" ? TEAMS[subject.zone] : [subject.team];
 
@@ -662,7 +698,7 @@ export default function TotalJobOverviewPage({ records, subject }) {
           )}
         </ChartCard>
         <ChartCard title="Job Done Per day">
-          <JobDonePerDayMini records={filtered} />
+          <JobDonePerDayMini records={filtered} avg={avgPerDay} />
         </ChartCard>
       </div>
 
