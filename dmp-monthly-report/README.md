@@ -127,6 +127,7 @@ cd /srv/apps/osp-l2 && git pull && docker compose up -d --build dmp-report
 
 | วันที่ | สิ่งที่เปลี่ยน |
 |---|---|
+| 2026-09-17 | แก้จาก audit: กราฟ Job per day ช่วงหลายเดือนแยกรายวันจริง (เดิมทับตามวันที่ของเดือน) · เป้า 260/โซน, 86/ทีม คูณตามจำนวนเดือนที่เลือก (หน้า 2, 6–7, 11–18) · ETL: คำนวณ Total Time = REPORT − ACCEPT, กู้ duration ≥ 1 วันที่เคยหาย (เพดาน 30 วัน), ปรับ `pass`→`Pass` · แถบ SLA แยก "รอ Defend" ออกจาก Not Waive · Gantt preset เกิน 1 วันในเวลาไทย · ค่าเริ่มต้นตัวกรอง = เดือนล่าสุดที่มีข้อมูล · Export PDF/PPTX จากหน้าทุกบริษัทได้แล้ว · Present: ลูกศรไม่เปลี่ยนหน้าขณะพิมพ์ · upload ไม่บล็อกผู้ใช้อื่น + กันอัปซ้อน · ตัวกรองห้ามว่าง · `ETL_VERSION` → backend rebuild data.json เองตอนสตาร์ต |
 | 2026-09-16 | ย้ายจาก pm2 บน Mac mini → Docker Compose บน baanmefai `176.80.40.4` · เพิ่ม `Dockerfile` (multi-stage node build → python:3.12-slim) · `compose.yml` ที่ root · `deploy/runbooks/deploy.md` · `.claude/knowledge/gotchas.md` · data ย้ายไป `/srv/data/dmp-report` |
 | 2026-09-16 | เพิ่มเส้น AVG (ReferenceLine) ในกราฟ Job Done per Day หน้า Total Job Overview |
 | 2026-09-16 | cutover `l2.workproth.com` → tunnel `cloudflared` (`ed36e902…`) บน .4 · ตรวจแล้ว `storage_dir=/data` · pm2 + tunnel เดิมบน Mac mini ยังเปิดไว้เผื่อ rollback |

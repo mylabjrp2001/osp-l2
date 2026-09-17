@@ -66,7 +66,7 @@ export async function captureAllPages({ nav, setActiveId, getTargetEl, onProgres
 }
 
 export async function exportToPDF(shots, { filename = "DMP-Monthly-Report.pdf" } = {}) {
-  if (!shots.length) return;
+  if (!shots.length) throw new Error("ไม่พบหน้ารายงานให้ export");
   // Landscape A4 in mm: 297 x 210
   const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = pdf.internal.pageSize.getWidth();
@@ -93,7 +93,7 @@ export async function exportToPDF(shots, { filename = "DMP-Monthly-Report.pdf" }
 }
 
 export async function exportToPPTX(shots, { filename = "DMP-Monthly-Report.pptx" } = {}) {
-  if (!shots.length) return;
+  if (!shots.length) throw new Error("ไม่พบหน้ารายงานให้ export");
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE"; // 13.33 x 7.5 in
   pptx.title = "DMP Monthly Report";

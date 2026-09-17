@@ -28,6 +28,72 @@ export function inRange(dStr, start, end) {
   return dStr >= start && dStr <= end;
 }
 
+// Shift an ISO date by n days in local time. Never go through toISOString():
+// it converts to UTC, which lands on the previous day in UTC+ zones (Bangkok).
+export function addDaysISO(iso, n) {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+
+// Calendar days in [start, end], inclusive.
+export function rangeDays(startStr, endStr) {
+  const s = parseISODate(startStr);
+  const e = parseISODate(endStr);
+  return Math.max(1, Math.round((e - s) / 86400000) + 1);
+}
+
+// Every ISO date in [start, end], inclusive.
+export function datesInRange(startStr, endStr) {
+  const out = [];
+  if (!startStr || !endStr || endStr < startStr) return out;
+  for (let d = startStr; d <= endStr; d = addDaysISO(d, 1)) out.push(d);
+  return out;
+}
+
+// How many months [start, end] covers, counting a partial month by its share of
+// days: Mar 1–31 = 1, Jul 1–Sep 30 = 3, Sep 1–15 = 0.5.
+export function monthsInRange(startStr, endStr) {
+  const s = parseISODate(startStr);
+  const e = parseISODate(endStr);
+  if (!s || !e || e < s) return 0;
+  let total = 0;
+  for (let m = startOfMonth(s); m <= e; m = addMonths(m, 1)) {
+    const last = endOfMonth(m);
+    const from = s > m ? s : m;
+    const to = e < last ? e : last;
+    total += (Math.round((to - from) / 86400000) + 1) / last.getDate();
+  }
+  return total;
+}
+
+// A per-month target scaled to the selected range, so a quarter is measured
+// against 3× the monthly target instead of 1×.
+export function targetForRange(monthlyTarget, startStr, endStr) {
+  return monthlyTarget * monthsInRange(startStr, endStr);
+}
+
+// Past this many days, per-day charts drop in-bar labels and thin the x-axis.
+export const DENSE_DAYS = 45;
+
+// One row per calendar day in [start, end], including days with no jobs so the
+// axis is continuous. Rows are keyed by full date: grouping by day-of-month alone
+// stacked 5 Jul, 5 Aug and 5 Sep into a single "5" bar on multi-month ranges.
+// `label` is the day number within one month, "DD/MM" across months.
+export function dailyRows(records, startStr, endStr, init, add) {
+  const sameMonth = startStr.slice(0, 7) === endStr.slice(0, 7);
+  const rows = new Map();
+  for (const d of datesInRange(startStr, endStr)) {
+    const label = sameMonth ? String(dayOfMonth(d)) : `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+    rows.set(d, { d, label, ...init() });
+  }
+  for (const r of records) {
+    const row = rows.get(r.d);
+    if (row) add(row, r);
+  }
+  return Array.from(rows.values());
+}
+
 export function monthLabelEN(year, monthIndex) {
   return `${MONTHS_EN[monthIndex]} ${year}`;
 }

@@ -14,8 +14,9 @@ import {
 import PageHeader from "../components/PageHeader.jsx";
 import { useFilters, applyFilters } from "../filters.jsx";
 import { ZONES, COLORS } from "../theme.js";
+import { targetForRange } from "../utils.js";
 
-const TARGET_PER_AREA = 260;
+const TARGET_PER_AREA_MONTH = 260;
 
 export default function Page02({ records }) {
   const f = useFilters();
@@ -27,6 +28,8 @@ export default function Page02({ records }) {
     }));
   }, [records, f]);
 
+  // 260 is per month; a quarter is judged against 780, half a month against 130.
+  const TARGET_PER_AREA = Math.max(1, Math.round(targetForRange(TARGET_PER_AREA_MONTH, f.start, f.end)));
   const total = rows.reduce((s, r) => s + r.count, 0);
   const yMax = Math.max(TARGET_PER_AREA * 1.1, ...rows.map((r) => r.count * 1.2), 50);
 
@@ -34,7 +37,7 @@ export default function Page02({ records }) {
     <div>
       <PageHeader
         title={`Job Total in Zone — Total ${total} Job`}
-        subtitle={`ช่วง ${f.start} ถึง ${f.end} — เป้าหมาย ${TARGET_PER_AREA} งาน / โซน`}
+        subtitle={`ช่วง ${f.start} ถึง ${f.end} — เป้าหมาย ${TARGET_PER_AREA} งาน / โซน (${TARGET_PER_AREA_MONTH} งาน / เดือน)`}
       />
       <div
         style={{

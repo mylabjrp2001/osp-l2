@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader.jsx";
 import { useFilters, applyFilters } from "../filters.jsx";
 import { COLORS, PRIORITY_ORDER } from "../theme.js";
-import { usePersistedState } from "../utils.js";
+import { addDaysISO, usePersistedState } from "../utils.js";
 
 // Threshold (in seconds) for each stage SLA — supplied by the user
 const TH_ACCEPT_S = 5 * 60;        // assign → accept  ≤ 5 min
@@ -45,12 +45,6 @@ function fmtClock(iso) {
 function fmtDateClock(iso) {
   if (!iso) return "—";
   return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
-}
-
-function addDaysISO(iso, n) {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
 }
 
 // Greedy lane packing: assign each interval to the lowest non-overlapping lane.

@@ -98,6 +98,11 @@ export default function App() {
     if (exportState) return;
     setExportState({ kind, i: 0, total: NAV.length, label: "เริ่ม…" });
     const prevId = activeId;
+    // The export captures the 21 report pages, which only mount on the report view.
+    // From /allcompany the capture target never existed and the export silently
+    // produced nothing, so switch views for the duration of the export.
+    const prevPath = onAllCompany ? window.location.pathname : null;
+    if (prevPath) navigate("/");
     try {
       const shots = await captureAllPages({
         nav: NAV,
@@ -117,6 +122,7 @@ export default function App() {
       alert("Export error: " + (err?.message || err));
     } finally {
       setActiveId(prevId);
+      if (prevPath) navigate(prevPath);
       setExportState(null);
     }
   };
@@ -124,9 +130,17 @@ export default function App() {
   // ESC to exit Present mode; arrow keys to navigate when in Present mode.
   useEffect(() => {
     const onKey = (e) => {
+      // Arrow keys inside a note, date input or the page <select> belong to that
+      // control — don't also flip the slide.
+      const el = e.target;
+      const typing =
+        el instanceof HTMLElement &&
+        (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
       if (e.key === "Escape" && present) {
         setPresent(false);
         if (document.fullscreenElement) document.exitFullscreen?.();
+      } else if (typing) {
+        return;
       } else if (present && (e.key === "ArrowRight" || e.key === "PageDown")) {
         e.preventDefault();
         const idx = NAV.findIndex((x) => x.id === activeId);

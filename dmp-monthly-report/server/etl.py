@@ -19,6 +19,16 @@ from pathlib import Path
 import openpyxl
 
 
+# Bump whenever the shape or meaning of the emitted records changes. The backend
+# compares this with the `etl_version` stored in data.json on startup and
+# rebuilds automatically, so a deploy never serves data from an older ETL.
+ETL_VERSION = 2
+
+# Durations longer than this are data-entry errors (e.g. a blank ONSITE_DATE turns
+# "Onsite to Done" into a 100+ day span). They are dropped instead of skewing means.
+MAX_DURATION_SEC = 30 * 86400
+
+
 # ---------- Filename / sheet helpers ----------
 
 FILENAME_RE = re.compile(r"(?i)^Data\s+Job\s+done\s+(\d{4})\.xls[xm]$")
@@ -67,9 +77,22 @@ def parse_date(v):
     return None
 
 
-def parse_seconds(v):
+def _excel_duration_datetime(v: datetime) -> int | None:
+    """A duration cell of 1 day or more comes back from openpyxl as a datetime near
+    the Excel epoch (e.g. 1900-01-01 20:49:07 = 1 day 20:49:07). openpyxl shifts
+    serials below 60 by one day for Excel's fake 1900-02-29, so the base differs
+    on either side of 1900-03-01. A real calendar date is not a duration."""
+    if v.year > 1900:
+        return None
+    base = datetime(1899, 12, 31) if v < datetime(1900, 3, 1) else datetime(1899, 12, 30)
+    return int((v - base).total_seconds())
+
+
+def _raw_seconds(v):
     if v is None or v == "":
         return None
+    if isinstance(v, datetime):
+        return _excel_duration_datetime(v)
     if isinstance(v, time):
         return v.hour * 3600 + v.minute * 60 + v.second
     if isinstance(v, timedelta):
@@ -85,6 +108,31 @@ def parse_seconds(v):
             h, mi, sec = m.group(1), m.group(2), m.group(3) or "0"
             return int(h) * 3600 + int(mi) * 60 + int(sec)
     return None
+
+
+def parse_seconds(v):
+    """Duration cell -> seconds, or None when blank, an error like #VALUE!, a real
+    calendar date, negative, or longer than MAX_DURATION_SEC."""
+    s = _raw_seconds(v)
+    if s is None or s < 0 or s > MAX_DURATION_SEC:
+        return None
+    return s
+
+
+def _canon(v, choices):
+    """Normalise a free-text status cell to its canonical spelling, ignoring case
+    and surrounding spaces ("pass" -> "Pass"). Unknown values pass through as-is."""
+    s = (v or "").strip()
+    if not s:
+        return None
+    for c in choices:
+        if s.lower() == c.lower():
+            return c
+    return s
+
+
+BEFORE_WAIVE_VALUES = ("In Due", "Out Due")
+AFTER_WAIVE_VALUES = ("Pass", "Not Waive")
 
 
 def zone_of(assign_to: str | None, zone_id: str | None):
@@ -177,6 +225,20 @@ def read_workbook(path: Path, log=print) -> list[dict]:
     return rows
 
 
+def _total_seconds(r: dict):
+    """Total Time. The 2025/2026 workbooks have no "Total Time" column, so derive it
+    as REPORT_DATE - ACCEPT_DATE, which equals Accept->Depart + Depart->Onsite +
+    Onsite->Done to within a minute on 98.5% of rows. A real column still wins."""
+    if r.get("total_time") not in (None, ""):
+        return parse_seconds(r.get("total_time"))
+    accept = parse_date(r.get("accept_date"))
+    report = parse_date(r.get("report_date") or r.get("finish_date"))
+    if not accept or not report:
+        return None
+    secs = int((report - accept).total_seconds())
+    return secs if 0 <= secs <= MAX_DURATION_SEC else None
+
+
 def transform(raw: list[dict]) -> tuple[list[dict], tuple[str | None, str | None]]:
     out: list[dict] = []
     seen: list[date] = []
@@ -199,14 +261,14 @@ def transform(raw: list[dict]) -> tuple[list[dict], tuple[str | None, str | None
             "c": (str(r["wfm_company"]).strip() if r.get("wfm_company") else None) or None,
             "a": (r.get("assign_to") or "").strip() or None,
             "p": (r.get("priority") or "").strip() or None,
-            "bw": (r.get("before_waive") or "").strip() or None,
-            "aw": (r.get("after_waive") or "").strip() or None,
+            "bw": _canon(r.get("before_waive"), BEFORE_WAIVE_VALUES),
+            "aw": _canon(r.get("after_waive"), AFTER_WAIVE_VALUES),
             "ro": (r.get("reason_overdue") or "").strip() or None,
             "sc": (r.get("subcause2") or "").strip() or None,
             "ad": parse_seconds(r.get("accept_to_depart")),
             "do": parse_seconds(r.get("depart_to_onsite")),
             "od": parse_seconds(r.get("onsite_to_done")),
-            "tt": parse_seconds(r.get("total_time")),
+            "tt": _total_seconds(r),
             "sol": (str(r["solution"]).strip() if r.get("solution") is not None else None) or None,
             "prb": (str(r["problem"]).strip() if r.get("problem") is not None else None) or None,
             "jb": (str(r["jb_id"]).strip() if r.get("jb_id") is not None else None) or None,
@@ -253,6 +315,7 @@ def build_data_json(excel_dir: Path, out_path: Path, *, log=print) -> dict:
 
     generated_at = datetime.now().isoformat(timespec="seconds")
     payload = {
+        "etl_version": ETL_VERSION,
         "generated_at": generated_at,
         "date_min": dmin,
         "date_max": dmax,

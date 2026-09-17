@@ -70,6 +70,16 @@ export function toggle(arr, x) {
   return arr.includes(x) ? arr.filter((y) => y !== x) : [...arr, x];
 }
 
+// Like toggle(), but refuses to leave nothing selected. An empty zone/team/priority
+// selection filtered every record out (blank report) while a reload restored "all",
+// so the same state looked different before and after a refresh.
+// `within` limits the check to the chips on screen (teams of the selected zones).
+export function toggleKeepOne(arr, x, within = null) {
+  const next = toggle(arr, x);
+  const shown = within ? next.filter((y) => within.includes(y)) : next;
+  return shown.length ? next : arr;
+}
+
 export const labelStyle = {
   fontSize: 11,
   color: "#8b8b96",

@@ -15,16 +15,9 @@ import PageHeader from "../components/PageHeader.jsx";
 import ChartCard from "../components/ChartCard.jsx";
 import { useFilters, applyFilters } from "../filters.jsx";
 import { COLORS, PRIORITY_ORDER } from "../theme.js";
-import { dayOfMonth, parseISODate } from "../utils.js";
+import { rangeDays, dailyRows, targetForRange, DENSE_DAYS } from "../utils.js";
 
 const JOB_TARGET_PER_MONTH = 260;
-
-// Number of calendar days in the filter range (inclusive)
-function rangeDays(startStr, endStr) {
-  const s = parseISODate(startStr);
-  const e = parseISODate(endStr);
-  return Math.max(1, Math.round((e - s) / 86400000) + 1);
-}
 
 // Render a reference-line label with a solid white background pill so the
 // text stays readable even when bars are tall.
@@ -54,39 +47,38 @@ function renderBoxedLabel({ viewBox }, text, color, side) {
   );
 }
 
-function buildDailyPriority(records) {
-  const map = new Map();
-  for (const r of records) {
-    const d = dayOfMonth(r.d);
-    if (!map.has(d)) {
-      const row = { day: d };
-      for (const p of PRIORITY_ORDER) row[p] = 0;
-      map.set(d, row);
+function buildDailyPriority(records, start, end) {
+  const out = dailyRows(
+    records,
+    start,
+    end,
+    () => Object.fromEntries(PRIORITY_ORDER.map((p) => [p, 0])),
+    (row, r) => {
+      if (r.p) row[r.p] = (row[r.p] || 0) + 1;
     }
-    const row = map.get(d);
-    if (r.p) row[r.p] = (row[r.p] || 0) + 1;
-  }
-  const out = Array.from(map.values()).sort((a, b) => a.day - b.day);
+  );
   for (const r of out) {
     r._total = PRIORITY_ORDER.reduce((s, p) => s + (r[p] || 0), 0);
   }
   return out;
 }
 
-function buildDailyOverdue(records) {
-  const map = new Map();
-  for (const r of records) {
-    const d = dayOfMonth(r.d);
-    if (!map.has(d)) map.set(d, { day: d, "In Due": 0, "Out Due": 0 });
-    const row = map.get(d);
-    if (r.bw) row[r.bw] = (row[r.bw] || 0) + 1;
-  }
-  const out = Array.from(map.values()).sort((a, b) => a.day - b.day);
+function buildDailyOverdue(records, start, end) {
+  const out = dailyRows(
+    records,
+    start,
+    end,
+    () => ({ "In Due": 0, "Out Due": 0 }),
+    (row, r) => {
+      if (r.bw) row[r.bw] = (row[r.bw] || 0) + 1;
+    }
+  );
   for (const r of out) r._total = (r["In Due"] || 0) + (r["Out Due"] || 0);
   return out;
 }
 
 function DailyPriorityChart({ data, target, avg }) {
+  const dense = data.length > DENSE_DAYS;
   return (
     <ChartCard title="Job Done Per day">
       <div
@@ -122,18 +114,20 @@ function DailyPriorityChart({ data, target, avg }) {
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} margin={{ top: 24, right: 20, left: 10, bottom: 8 }} barCategoryGap={4}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-          <XAxis dataKey="day" tick={{ fill: "#444", fontSize: 11 }} axisLine={{ stroke: "#bbb" }} tickLine={false} interval={0} />
+          <XAxis dataKey="label" tick={{ fill: "#444", fontSize: 11 }} axisLine={{ stroke: "#bbb" }} tickLine={false} interval={dense ? "preserveStartEnd" : 0} />
           <YAxis tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} />
           <Tooltip contentStyle={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6 }} />
           {PRIORITY_ORDER.map((p, i) => (
             <Bar key={p} dataKey={p} stackId="d" fill={COLORS.priority[p]} isAnimationActive={false}>
-              <LabelList
-                dataKey={p}
-                position="center"
-                style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }}
-                formatter={(v) => (v > 0 ? v : "")}
-              />
-              {i === PRIORITY_ORDER.length - 1 && (
+              {!dense && (
+                <LabelList
+                  dataKey={p}
+                  position="center"
+                  style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }}
+                  formatter={(v) => (v > 0 ? v : "")}
+                />
+              )}
+              {!dense && i === PRIORITY_ORDER.length - 1 && (
                 <LabelList
                   dataKey="_total"
                   position="top"
@@ -166,6 +160,7 @@ function DailyPriorityChart({ data, target, avg }) {
 }
 
 function DailyOverdueChart({ data }) {
+  const dense = data.length > DENSE_DAYS;
   return (
     <ChartCard title="Job Overdue / In Due Per day">
       <div style={{ padding: "6px 12px 4px", fontSize: 12 }}>
@@ -176,15 +171,15 @@ function DailyOverdueChart({ data }) {
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} margin={{ top: 24, right: 20, left: 10, bottom: 8 }} barCategoryGap={4}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-          <XAxis dataKey="day" tick={{ fill: "#444", fontSize: 11 }} axisLine={{ stroke: "#bbb" }} tickLine={false} interval={0} />
+          <XAxis dataKey="label" tick={{ fill: "#444", fontSize: 11 }} axisLine={{ stroke: "#bbb" }} tickLine={false} interval={dense ? "preserveStartEnd" : 0} />
           <YAxis tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} />
           <Tooltip contentStyle={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6 }} />
           <Bar dataKey="In Due" stackId="d" fill={COLORS.good}>
-            <LabelList dataKey="In Due" position="center" style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} formatter={(v) => (v > 0 ? v : "")} />
+            {!dense && <LabelList dataKey="In Due" position="center" style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} formatter={(v) => (v > 0 ? v : "")} />}
           </Bar>
           <Bar dataKey="Out Due" stackId="d" fill={COLORS.bad}>
-            <LabelList dataKey="Out Due" position="center" style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} formatter={(v) => (v > 0 ? v : "")} />
-            <LabelList dataKey="_total" position="top" style={{ fill: "#333", fontSize: 11, fontWeight: 700 }} formatter={(v) => (v > 0 ? v : "")} offset={4} />
+            {!dense && <LabelList dataKey="Out Due" position="center" style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} formatter={(v) => (v > 0 ? v : "")} />}
+            {!dense && <LabelList dataKey="_total" position="top" style={{ fill: "#333", fontSize: 11, fontWeight: 700 }} formatter={(v) => (v > 0 ? v : "")} offset={4} />}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -198,11 +193,13 @@ export default function JobPerDayPage({ records, zone }) {
     return applyFilters(records, f, ["zone"]).filter((r) => r.z === zone);
   }, [records, f, zone]);
 
-  const dailyP = useMemo(() => buildDailyPriority(filtered), [filtered]);
-  const dailyO = useMemo(() => buildDailyOverdue(filtered), [filtered]);
+  const dailyP = useMemo(() => buildDailyPriority(filtered, f.start, f.end), [filtered, f.start, f.end]);
+  const dailyO = useMemo(() => buildDailyOverdue(filtered, f.start, f.end), [filtered, f.start, f.end]);
 
   const days = rangeDays(f.start, f.end);
-  const target = JOB_TARGET_PER_MONTH / days;
+  // The monthly target scales with the months covered, then spreads over the days:
+  // a full quarter stays at ~8.5/day instead of shrinking to 260 / 92 = 2.8/day.
+  const target = targetForRange(JOB_TARGET_PER_MONTH, f.start, f.end) / days;
   const avg = filtered.length / days;
 
   return (

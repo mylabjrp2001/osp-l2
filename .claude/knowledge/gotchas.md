@@ -56,3 +56,52 @@ note ทั้งหมดจะหายไปจากสายตา (ยั�
 
 server มีแค่ 4 route (`/api/status`, `/api/upload`, `/api/files/{name}`, `/data.json`)
 ไม่มี state อื่นฝั่ง server นอกจาก `server/storage/` เลย
+
+## ETL_VERSION — ต้อง bump ทุกครั้งที่ผลของ ETL เปลี่ยน
+
+`server/etl.py` มี `ETL_VERSION` และเขียนลง `data.json` ตอน build
+ตอน backend สตาร์ต (`_rebuild_if_stale` ใน `server/app.py`) ถ้า `etl_version` ใน `data.json` ไม่ตรง
+และมีไฟล์ Excel อยู่ จะ rebuild ใน background thread เอง (~11 วิ ระหว่างนั้นเสิร์ฟไฟล์เก่า)
+→ deploy ที่แก้ ETL **ไม่ต้องสั่ง rebuild มือ** แต่ถ้าลืม bump เลข ข้อมูลบน prod จะค้างสูตรเก่า
+ดู log: `docker compose logs dmp-report | grep etl_version`
+
+## Excel: duration ที่ ≥ 1 วัน มาเป็น `datetime(1900, …)` ไม่ใช่ `time`
+
+openpyxl แปลงคอลัมน์ Accept to Depart / Depart to Onsite / Onsite to Done ที่ต่ำกว่า 24 ชม. เป็น `time`
+แต่ ≥ 24 ชม. เป็น `datetime(1900,1,1,20,49,7)` (= 1 วัน 20:49:07) — ETL เดิมทิ้งเป็น null ทั้งหมด
+(งานยาวหายจากค่าเฉลี่ย) · แก้แล้วใน `_excel_duration_datetime` (base ต่างกันก่อน/หลัง 1900-03-01
+เพราะ openpyxl ชดเชย 29 ก.พ. 1900 ปลอมของ Excel)
+ค่าที่เป็นวันที่จริง (ปี > 1900 — onsite ว่างแล้วสูตรลบออกมาเป็นวันที่) และค่าที่เกิน `MAX_DURATION_SEC`
+(30 วัน) ถือเป็นข้อมูลผิด → null · `#VALUE!` ก็ null
+
+## ไฟล์ Excel ไม่มีคอลัมน์ "Total Time"
+
+ทั้งไฟล์ 2025 และ 2026 · ETL จึงคำนวณ `tt = REPORT_DATE − ACCEPT_DATE`
+(ตรวจกับข้อมูลจริง: เท่ากับ ad + do + od ภายใน 1 นาที 98.5% ของแถว) · ถ้าวันหน้า Excel มีคอลัมน์นี้กลับมา
+ค่าจากคอลัมน์จะถูกใช้ก่อน
+
+## After Waive สะกดไม่สม่ำเสมอ
+
+ค่าจริงที่เจอ: `Pass` · `Not Waive` · `รอ Defend` · และ `pass` ตัวเล็ก 118 แถว (ต.ค. 2025)
+ETL ปรับตัวพิมพ์ให้เป็นค่ามาตรฐาน (`_canon`) — โค้ดหน้าเว็บเทียบ `=== "Pass"` ตรงตัวได้เลย
+`รอ Defend` **ไม่ใช่ Not Waive**: ไม่นับเป็น pass แต่แถบ SLA ในหน้า Overview แยกเป็นสีส้ม "รอ Defend / ว่าง"
+
+## เป้าหมาย (260/โซน · 86/ทีม) เป็นต่อเดือน
+
+ใช้ `targetForRange(monthly, start, end)` ใน `src/utils.js` เสมอ — คูณด้วยจำนวนเดือนที่ช่วงครอบคลุม
+(เดือนไม่เต็มคิดตามสัดส่วนวัน) · เป้าต่อวัน = `targetForRange(...) / rangeDays(...)`
+กราฟ "ต่อวัน" ใช้ `dailyRows()` ที่คีย์ด้วยวันที่เต็ม — ห้ามกลับไปจัดกลุ่มด้วย `dayOfMonth` (ช่วงหลายเดือนจะทับกัน)
+
+## วันที่ฝั่ง frontend ห้ามผ่าน `toISOString()`
+
+แปลงเป็น UTC → ในเวลาไทย (UTC+7) ได้วันก่อนหน้า 1 วัน (Gantt preset "7 วัน" เคยได้ 8 วัน)
+ใช้ `addDaysISO` / `toISODate` ใน `src/utils.js`
+
+## ตั้งใจให้เป็นแบบนี้ — ไม่ใช่บั๊ก (เจ้าของยืนยัน 17 ก.ย. 2026)
+
+audit รอบหน้าไม่ต้องรายงานซ้ำ:
+- **API ไม่มีระบบ login / `server/storage` ไม่อยู่ในชุด backup** — เจ้าของรับทราบ
+- **หน้า 22 KPI SLA ใช้ priority ตามตัวกรอง** (ต่างจากหน้า 5, 9–18 ที่ fix Critical + Major) —
+  ให้ผู้ใช้เลือกเองว่าจะนับจาก priority ไหน
+- **หน้า D2 งานรอลงข้อมูล แสดงเฉพาะทีม DMP** — ตัวกรองโซนตัดทีมอื่นออกโดยตั้งใจ
+- **อัปโหลดทับไฟล์ปีเดิมก่อน ETL ตรวจ** — ถ้าไฟล์เสีย ไฟล์เก่าหาย รับได้

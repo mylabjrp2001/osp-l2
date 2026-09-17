@@ -22,6 +22,7 @@ import shutil
 import sys
 import threading
 import traceback
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.etl import (
+    ETL_VERSION,
     build_data_json,
     list_excel_files,
     parse_year_from_filename,
@@ -50,7 +52,36 @@ STORAGE.mkdir(parents=True, exist_ok=True)
 _BUILD_LOCK = threading.Lock()
 
 
-app = FastAPI(title="DMP Monthly Report")
+def _rebuild_if_stale() -> None:
+    """Rebuild data.json when it was produced by an older ETL (or is missing while
+    Excel files exist). Runs in a background thread so startup is not delayed; the
+    previous data.json keeps being served until the new one replaces it."""
+    if not list_excel_files(EXCEL_DIR):
+        return
+    meta = _data_json_meta()
+    if meta and meta.get("etl_version") == ETL_VERSION:
+        return
+    with _BUILD_LOCK:
+        meta = _data_json_meta()
+        if meta and meta.get("etl_version") == ETL_VERSION:
+            return
+        print(
+            f"data.json etl_version={meta and meta.get('etl_version')} != {ETL_VERSION}; rebuilding",
+            file=sys.stderr,
+        )
+        try:
+            _rebuild()
+        except Exception:
+            traceback.print_exc()
+
+
+@asynccontextmanager
+async def _lifespan(app):
+    threading.Thread(target=_rebuild_if_stale, name="etl-migrate", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="DMP Monthly Report", lifespan=_lifespan)
 
 # CORS — needed for dev (Vite on :5173 hitting FastAPI on :8000 directly without proxy).
 app.add_middleware(
@@ -73,21 +104,33 @@ def _file_stat(p: Path) -> dict:
     }
 
 
+# data.json is ~30 MB; parse it once per version of the file, not on every status call.
+_META_CACHE: dict = {"key": None, "meta": None}
+
+
 def _data_json_meta() -> dict | None:
-    if not DATA_JSON.exists():
+    try:
+        st = DATA_JSON.stat()
+    except FileNotFoundError:
         return None
+    key = (st.st_mtime_ns, st.st_size)
+    if _META_CACHE["key"] == key:
+        return _META_CACHE["meta"]
     try:
         with DATA_JSON.open("r", encoding="utf-8") as f:
             head = json.loads(f.read())
-        return {
+        meta = {
+            "etl_version": head.get("etl_version"),
             "generated_at": head.get("generated_at"),
             "date_min": head.get("date_min"),
             "date_max": head.get("date_max"),
             "total": head.get("total"),
-            "size": DATA_JSON.stat().st_size,
+            "size": st.st_size,
         }
     except Exception:
         return None
+    _META_CACHE.update(key=key, meta=meta)
+    return meta
 
 
 def _status_payload() -> dict:
@@ -111,8 +154,11 @@ def api_status():
     return _status_payload()
 
 
+# A plain `def` endpoint runs in FastAPI's threadpool. The save + ETL take ~10 s and
+# are fully synchronous, so as `async def` they froze the event loop and every
+# other request (other users loading the report) until the rebuild finished.
 @app.post("/api/upload")
-async def api_upload(file: UploadFile = File(...)):
+def api_upload(file: UploadFile = File(...)):
     fname = (file.filename or "").strip()
     if not fname:
         raise HTTPException(400, "missing filename")
@@ -125,27 +171,25 @@ async def api_upload(file: UploadFile = File(...)):
 
     dst = EXCEL_DIR / fname
     tmp = dst.with_suffix(dst.suffix + ".uploading")
-    try:
-        with tmp.open("wb") as out:
-            while True:
-                chunk = await file.read(1024 * 1024)
-                if not chunk:
-                    break
-                out.write(chunk)
-        tmp.replace(dst)
-    except Exception as e:
-        tmp.unlink(missing_ok=True)
-        raise HTTPException(500, f"failed to save upload: {e}")
-
-    # Remove other extensions for same year (e.g. uploading .xlsm to replace .xlsx)
-    for other, oyear in list_excel_files(EXCEL_DIR):
-        if oyear == year and other.name != dst.name:
-            try:
-                other.unlink()
-            except OSError:
-                pass
-
+    # Hold the lock from the first byte written: two uploads of the same year
+    # would otherwise share one .uploading temp file.
     with _BUILD_LOCK:
+        try:
+            with tmp.open("wb") as out:
+                shutil.copyfileobj(file.file, out, 1024 * 1024)
+            tmp.replace(dst)
+        except Exception as e:
+            tmp.unlink(missing_ok=True)
+            raise HTTPException(500, f"failed to save upload: {e}")
+
+        # Remove other extensions for same year (e.g. uploading .xlsm to replace .xlsx)
+        for other, oyear in list_excel_files(EXCEL_DIR):
+            if oyear == year and other.name != dst.name:
+                try:
+                    other.unlink()
+                except OSError:
+                    pass
+
         try:
             info = _rebuild()
         except Exception as e:

@@ -28,6 +28,9 @@ export default function UploadPanel({ open, onClose, onDataChanged }) {
   const [errorMsg, setErrorMsg] = useState(null);
   const [okMsg, setOkMsg] = useState(null);
   const fileRef = useRef(null);
+  // The file input and button are disabled while busy, but drag-and-drop is not;
+  // a ref (not state) also blocks a second drop landing before the re-render.
+  const busyRef = useRef(false);
 
   const refresh = async () => {
     setLoadErr(null);
@@ -45,6 +48,7 @@ export default function UploadPanel({ open, onClose, onDataChanged }) {
   if (!open) return null;
 
   const handleUpload = async (file) => {
+    if (busyRef.current) return;
     setErrorMsg(null);
     setOkMsg(null);
     if (!file) return;
@@ -54,6 +58,7 @@ export default function UploadPanel({ open, onClose, onDataChanged }) {
       );
       return;
     }
+    busyRef.current = true;
     setBusy(`กำลังอัพโหลด ${file.name} …`);
     try {
       const fd = new FormData();
@@ -74,13 +79,16 @@ export default function UploadPanel({ open, onClose, onDataChanged }) {
     } catch (e) {
       setErrorMsg(String(e.message || e));
     } finally {
+      busyRef.current = false;
       setBusy(null);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
   const handleDelete = async (name) => {
+    if (busyRef.current) return;
     if (!confirm(`ลบไฟล์ ${name} ออกจาก server?`)) return;
+    busyRef.current = true;
     setBusy(`กำลังลบ ${name} …`);
     setErrorMsg(null);
     setOkMsg(null);
@@ -97,6 +105,7 @@ export default function UploadPanel({ open, onClose, onDataChanged }) {
     } catch (e) {
       setErrorMsg(String(e.message || e));
     } finally {
+      busyRef.current = false;
       setBusy(null);
     }
   };

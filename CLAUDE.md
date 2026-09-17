@@ -50,7 +50,9 @@ Three layers, connected by a single generated `data.json`:
    - `server/etl.py` is the canonical implementation (used by the backend on upload).
    - `etl/build_data.py` is the older standalone version invoked by `npm run etl`.
    - Source files live in `../Excel Data/` named `Data Job done <YEAR>.xlsx|.xlsm`.
-   - Output is `data.json` (~11–14 MB): `{ generated_at, date_min, date_max, total, records[] }`.
+   - Output is `data.json` (~30 MB): `{ etl_version, generated_at, date_min, date_max, total, records[] }`.
+   - **Bump `ETL_VERSION` in `server/etl.py` whenever the emitted records change** — the backend
+     rebuilds `data.json` on startup when the stored version differs, so deploys need no manual rebuild.
    - **Records use single/two-letter keys** to keep the file small (see `transform()` in `server/etl.py`):
      `d` date (YYYY-MM-DD), `z` zone, `t` team label, `p` priority, `c` company, `a` assign_to,
      `zid` zone-by-site, `bw`/`aw` before/after waive, `ro` overdue reason, `sc` subcause,
@@ -69,7 +71,8 @@ Three layers, connected by a single generated `data.json`:
 3. **React + Vite frontend** (`src/`) renders the report.
    - `src/data.js` — `useData()` fetches `/data.json` once and caches it in a module-level variable.
    - `src/filters.jsx` — `FilterProvider` / `useFilters()` hold the global filter state (start, end,
-     zones, teams, priorities; empty array = "all"). `applyFilters(jobs, f)` is the single chokepoint
+     zones, teams, priorities; the filter bars never let a zone/team/priority selection go empty, and the
+     default range is the latest month that has data). `applyFilters(jobs, f)` is the single chokepoint
      that every page runs the raw job list through before charting.
    - `src/App.jsx` — top-level layout, page routing/ordering, and the global FilterBar + Upload panel.
    - `src/pages/` — one component per report page. Charts use **Recharts**. Several `PageNN_*.jsx`
@@ -84,6 +87,9 @@ In dev, `vite.config.js` proxies `/api/*` and `/data.json` to the backend (`DMP_
 
 ### Conventions worth knowing
 
+- Targets (260 jobs/zone, 86/team) are **per month**: always scale them with `targetForRange()` and build
+  per-day charts with `dailyRows()` (both in `src/utils.js`). Never use `toISOString()` for dates — it
+  shifts a day back in Bangkok time; use `addDaysISO` / `toISODate`.
 - `src/theme.js` is the **single source of domain constants** — `ZONES`, `TEAMS`/`ALL_ZONE_TEAMS`,
   `PRIORITY_ORDER`, the priority color palette, and `MONTHS_EN`/`MONTHS_TH`. Read filters and pages
   off these rather than hardcoding zone/team/priority strings.

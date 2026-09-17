@@ -1,12 +1,18 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ZONES, ALL_ZONE_TEAMS, PRIORITY_ORDER } from "./theme.js";
-import { inRange } from "./utils.js";
+import { inRange, parseISODate, toISODate, startOfMonth, endOfMonth } from "./utils.js";
 
 const FilterCtx = createContext(null);
 
-const DEFAULT_START = "2026-03-01";
-const DEFAULT_END = "2026-03-31";
 const STORAGE_KEY = "dmp.filters.v1";
+
+// Default range = the whole latest month that has data (not today's month): on the
+// 1st, before the new month's Excel is uploaded, today's month would be empty.
+// A full calendar month also lights up the matching month preset chip.
+function defaultRange(dateMax) {
+  const anchor = parseISODate(dateMax) || new Date();
+  return { start: toISODate(startOfMonth(anchor)), end: toISODate(endOfMonth(anchor)) };
+}
 
 function loadPersisted() {
   if (typeof window === "undefined") return null;
@@ -41,8 +47,8 @@ function clearPersisted() {
 export function FilterProvider({ children, dateMin, dateMax }) {
   // Initial state: read from localStorage if present; else defaults.
   const persisted = loadPersisted();
-  const [start, setStart] = useState(persisted?.start || DEFAULT_START);
-  const [end, setEnd] = useState(persisted?.end || DEFAULT_END);
+  const [start, setStart] = useState(() => persisted?.start || defaultRange(dateMax).start);
+  const [end, setEnd] = useState(() => persisted?.end || defaultRange(dateMax).end);
   const [zones, setZones] = useState(persisted?.zones?.length ? persisted.zones : ZONES);
   const [teams, setTeams] = useState(persisted?.teams?.length ? persisted.teams : ALL_ZONE_TEAMS);
   const [priorities, setPriorities] = useState(
@@ -77,8 +83,9 @@ export function FilterProvider({ children, dateMin, dateMax }) {
       setPriorities,
       reset: () => {
         clearPersisted();
-        setStart(DEFAULT_START);
-        setEnd(DEFAULT_END);
+        const d = defaultRange(dateMax);
+        setStart(d.start);
+        setEnd(d.end);
         setZones(ZONES);
         setTeams(ALL_ZONE_TEAMS);
         setPriorities(PRIORITY_ORDER);

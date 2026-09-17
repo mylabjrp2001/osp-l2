@@ -22,15 +22,9 @@ import ChartCard from "../components/ChartCard.jsx";
 import EditableNote from "../components/EditableNote.jsx";
 import { useFilters, applyFilters } from "../filters.jsx";
 import { COLORS, PRIORITY_ORDER, TEAMS } from "../theme.js";
-import { dayOfMonth, pct, fmtPct, parseISODate } from "../utils.js";
+import { pct, fmtPct, rangeDays, dailyRows, targetForRange, DENSE_DAYS } from "../utils.js";
 
-// Number of calendar days in the filter range (inclusive)
-function rangeDays(startStr, endStr) {
-  const s = parseISODate(startStr);
-  const e = parseISODate(endStr);
-  return Math.max(1, Math.round((e - s) / 86400000) + 1);
-}
-
+// Monthly targets; scaled to the selected range with targetForRange().
 const TARGET_MAP = {
   zone: 260, // 260 jobs / zone / month (PDF page 2 target line)
   team: 86, // PDF pages 12-14 / 16-18
@@ -204,19 +198,18 @@ function JobByPriorityDonut({ records }) {
   );
 }
 
-function JobDonePerDayMini({ records, avg, height = 300 }) {
-  const map = new Map();
-  for (const r of records) {
-    const d = dayOfMonth(r.d);
-    if (!map.has(d)) {
-      const row = { day: d };
-      for (const p of PRIORITY_ORDER) row[p] = 0;
-      map.set(d, row);
+function JobDonePerDayMini({ records, start, end, avg, height = 300 }) {
+  const data = dailyRows(
+    records,
+    start,
+    end,
+    () => Object.fromEntries(PRIORITY_ORDER.map((p) => [p, 0])),
+    (row, r) => {
+      if (r.p) row[r.p] = (row[r.p] || 0) + 1;
     }
-    if (r.p) map.get(d)[r.p]++;
-  }
-  const data = Array.from(map.values()).sort((a, b) => a.day - b.day);
-  for (const r of data) r._total = PRIORITY_ORDER.reduce((s, p) => s + r[p], 0);
+  );
+  for (const r of data) r._total = PRIORITY_ORDER.reduce((s, p) => s + (r[p] || 0), 0);
+  const dense = data.length > DENSE_DAYS;
   const hasAvg = Number.isFinite(avg) && avg > 0;
   return (
     <div style={{ display: "flex", flexDirection: "column", height }}>
@@ -266,9 +259,9 @@ function JobDonePerDayMini({ records, avg, height = 300 }) {
           <BarChart data={data} margin={{ top: 18, right: 16, left: 8, bottom: 8 }} barCategoryGap={3}>
             <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
             <XAxis
-              dataKey="day"
+              dataKey="label"
               tick={{ fill: "#555", fontSize: 10 }}
-              interval={0}
+              interval={dense ? "preserveStartEnd" : 0}
               axisLine={{ stroke: "#bbb" }}
               tickLine={false}
               padding={{ left: 4, right: 4 }}
@@ -277,7 +270,7 @@ function JobDonePerDayMini({ records, avg, height = 300 }) {
             <Tooltip contentStyle={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6 }} />
             {PRIORITY_ORDER.map((p, i) => (
               <Bar key={p} dataKey={p} stackId="d" fill={COLORS.priority[p]} isAnimationActive={false}>
-                {i === PRIORITY_ORDER.length - 1 && (
+                {!dense && i === PRIORITY_ORDER.length - 1 && (
                   <LabelList dataKey="_total" position="top" style={{ fill: "#333", fontSize: 10, fontWeight: 700 }} formatter={(v) => (v > 0 ? v : "")} offset={4} />
                 )}
               </Bar>
@@ -298,15 +291,18 @@ function JobDonePerDayMini({ records, avg, height = 300 }) {
   );
 }
 
-function JobOverduePerDayMini({ records }) {
-  const map = new Map();
-  for (const r of records) {
-    const d = dayOfMonth(r.d);
-    if (!map.has(d)) map.set(d, { day: d, "In Due": 0, "Out Due": 0 });
-    if (r.bw) map.get(d)[r.bw]++;
-  }
-  const data = Array.from(map.values()).sort((a, b) => a.day - b.day);
+function JobOverduePerDayMini({ records, start, end }) {
+  const data = dailyRows(
+    records,
+    start,
+    end,
+    () => ({ "In Due": 0, "Out Due": 0 }),
+    (row, r) => {
+      if (r.bw) row[r.bw] = (row[r.bw] || 0) + 1;
+    }
+  );
   for (const r of data) r._total = r["In Due"] + r["Out Due"];
+  const dense = data.length > DENSE_DAYS;
   return (
     <div style={{ display: "flex", flexDirection: "column", height: 300 }}>
       <div
@@ -334,9 +330,9 @@ function JobOverduePerDayMini({ records }) {
           <BarChart data={data} margin={{ top: 18, right: 16, left: 8, bottom: 8 }} barCategoryGap={3}>
             <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
             <XAxis
-              dataKey="day"
+              dataKey="label"
               tick={{ fill: "#555", fontSize: 10 }}
-              interval={0}
+              interval={dense ? "preserveStartEnd" : 0}
               axisLine={{ stroke: "#bbb" }}
               tickLine={false}
               padding={{ left: 4, right: 4 }}
@@ -344,27 +340,27 @@ function JobOverduePerDayMini({ records }) {
             <YAxis tick={{ fill: "#888", fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
             <Tooltip contentStyle={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6 }} />
             <Bar dataKey="In Due" stackId="d" fill={COLORS.good} isAnimationActive={false}>
-              <LabelList
+              {!dense && <LabelList
                 dataKey="In Due"
                 position="center"
                 style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }}
                 formatter={(v) => (v > 0 ? v : "")}
-              />
+              />}
             </Bar>
             <Bar dataKey="Out Due" stackId="d" fill={COLORS.bad} isAnimationActive={false}>
-              <LabelList
+              {!dense && <LabelList
                 dataKey="Out Due"
                 position="center"
                 style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }}
                 formatter={(v) => (v > 0 ? v : "")}
-              />
-              <LabelList
+              />}
+              {!dense && <LabelList
                 dataKey="_total"
                 position="top"
                 style={{ fill: "#333", fontSize: 10, fontWeight: 700 }}
                 formatter={(v) => (v > 0 ? v : "")}
                 offset={4}
-              />
+              />}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -377,8 +373,16 @@ function SlaPerformanceBars({ records, teams }) {
   const rows = teams.map((t) => {
     const recs = records.filter((r) => r.t === t);
     const passVal = pct(recs.filter((r) => r.aw === "Pass").length, recs.length) || 0;
-    const notVal = 100 - passVal;
-    return { team: t, Pass: +passVal.toFixed(2), "Not Waive": +notVal.toFixed(2), total: recs.length };
+    const notVal = pct(recs.filter((r) => r.aw === "Not Waive").length, recs.length) || 0;
+    // Anything else ("รอ Defend", blank) is not a pass, but it is not "Not Waive" either.
+    const otherVal = Math.max(0, 100 - passVal - notVal);
+    return {
+      team: t,
+      Pass: +passVal.toFixed(2),
+      "Not Waive": +notVal.toFixed(2),
+      Other: +otherVal.toFixed(2),
+      total: recs.length,
+    };
   }).filter((r) => r.total > 0);
   if (!rows.length) return <div style={{ color: "#999", padding: 20, textAlign: "center" }}>ไม่มีข้อมูล</div>;
   return (
@@ -430,6 +434,24 @@ function SlaPerformanceBars({ records, teams }) {
                 {r["Not Waive"] >= 6 ? `${r["Not Waive"].toFixed(2)}%` : ""}
               </div>
             )}
+            {r.Other > 0 && (
+              <div
+                title={`รอ Defend / ว่าง ${r.Other.toFixed(2)}%`}
+                style={{
+                  width: `${r.Other}%`,
+                  background: COLORS.warn,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {r.Other >= 6 ? `${r.Other.toFixed(2)}%` : ""}
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -471,6 +493,22 @@ function SlaPerformanceBars({ records, teams }) {
           />
           Not Waive
         </span>
+        {rows.some((r) => r.Other > 0) && (
+          <span>
+            <span
+              style={{
+                display: "inline-block",
+                width: 10,
+                height: 10,
+                background: COLORS.warn,
+                borderRadius: 2,
+                marginRight: 4,
+                verticalAlign: "middle",
+              }}
+            />
+            รอ Defend / ว่าง
+          </span>
+        )}
       </div>
     </div>
   );
@@ -671,7 +709,10 @@ export default function TotalJobOverviewPage({ records, subject }) {
     subject.kind === "zone"
       ? `Total Job Overview (${subject.zone}) ${total} job SLA ${fmtPct(passPct)}`
       : `Total Job Overview (${subject.team}) SLA ${fmtPct(passPct)}`;
-  const maxGauge = subject.kind === "zone" ? TARGET_MAP.zone : TARGET_MAP.team;
+  const maxGauge = Math.max(
+    1,
+    Math.round(targetForRange(subject.kind === "zone" ? TARGET_MAP.zone : TARGET_MAP.team, f.start, f.end))
+  );
 
   return (
     <div>
@@ -698,7 +739,7 @@ export default function TotalJobOverviewPage({ records, subject }) {
           )}
         </ChartCard>
         <ChartCard title="Job Done Per day">
-          <JobDonePerDayMini records={filtered} avg={avgPerDay} />
+          <JobDonePerDayMini records={filtered} start={f.start} end={f.end} avg={avgPerDay} />
         </ChartCard>
       </div>
 
@@ -717,7 +758,7 @@ export default function TotalJobOverviewPage({ records, subject }) {
           {subject.kind === "zone" ? (
             <ReasonOverdueTable records={filtered} />
           ) : (
-            <JobOverduePerDayMini records={filtered} />
+            <JobOverduePerDayMini records={filtered} start={f.start} end={f.end} />
           )}
         </ChartCard>
       </div>

@@ -1,7 +1,7 @@
 import React from "react";
 import { useFilters } from "../filters.jsx";
 import { ZONES, TEAMS, PRIORITY_ORDER, COLORS } from "../theme.js";
-import { Chip, toggle, buildPresets, labelStyle, inputStyle } from "./filterControls.jsx";
+import { Chip, toggleKeepOne, buildPresets, labelStyle, inputStyle } from "./filterControls.jsx";
 
 export default function FilterBar() {
   const f = useFilters();
@@ -86,7 +86,17 @@ export default function FilterBar() {
               <Chip
                 key={z}
                 active={f.zones.includes(z)}
-                onClick={() => f.setZones(toggle(f.zones, z))}
+                onClick={() => {
+                  const zones = toggleKeepOne(f.zones, z);
+                  if (zones === f.zones) return;
+                  f.setZones(zones);
+                  // Removing a zone can hide every selected team; re-select the
+                  // remaining zones' teams so the report doesn't go blank.
+                  const shown = zones.flatMap((zz) => TEAMS[zz] || []);
+                  if (!f.teams.some((t) => shown.includes(t))) {
+                    f.setTeams([...new Set([...f.teams, ...shown])]);
+                  }
+                }}
               >
                 {z}
               </Chip>
@@ -102,7 +112,7 @@ export default function FilterBar() {
               <Chip
                 key={t}
                 active={f.teams.includes(t)}
-                onClick={() => f.setTeams(toggle(f.teams, t))}
+                onClick={() => f.setTeams(toggleKeepOne(f.teams, t, visibleTeams))}
               >
                 {t}
               </Chip>
@@ -119,7 +129,7 @@ export default function FilterBar() {
                 key={p}
                 color={COLORS.priority[p]}
                 active={f.priorities.includes(p)}
-                onClick={() => f.setPriorities(toggle(f.priorities, p))}
+                onClick={() => f.setPriorities(toggleKeepOne(f.priorities, p))}
               >
                 {p}
               </Chip>

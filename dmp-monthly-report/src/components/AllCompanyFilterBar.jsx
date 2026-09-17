@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { useFilters } from "../filters.jsx";
 import { PRIORITY_ORDER, COLORS } from "../theme.js";
-import { Chip, toggle, buildPresets, labelStyle, inputStyle } from "./filterControls.jsx";
+import { Chip, toggle, toggleKeepOne, buildPresets, labelStyle, inputStyle } from "./filterControls.jsx";
 import { techOf } from "../allcompany/helpers.js";
 import { ZONE_ORDER, ZONE_COLORS } from "../allcompany/zones.js";
 import { useAllCo } from "../allcompany/context.jsx";
@@ -78,7 +78,7 @@ export default function AllCompanyFilterBar() {
           <div style={{ display: "flex", gap: 6 }}>
             {PRIORITY_ORDER.map((p) => (
               <Chip key={p} color={COLORS.priority[p]} active={f.priorities.includes(p)}
-                onClick={() => f.setPriorities(toggle(f.priorities, p))}>
+                onClick={() => f.setPriorities(toggleKeepOne(f.priorities, p))}>
                 {p}
               </Chip>
             ))}
