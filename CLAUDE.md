@@ -33,9 +33,14 @@ source server/.venv/bin/activate          # Windows: server\.venv\Scripts\activa
 pip install -r server/requirements.txt
 python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
 
-npm run dev:all        # run Vite + uvicorn together (needs venv set up first; Ctrl+C stops both)
+npm run dev:all        # run Vite + uvicorn together (needs venv set up first; Ctrl+C stops both; works on Windows too)
 npm run dev:server     # uvicorn only, with --reload
 ```
+
+**Windows:** double-click `start.bat` (use the app on :8000) or `dev.bat` (hot reload on :5173) in the repo root.
+Both call `dmp-monthly-report/scripts/setup-windows.bat`, which installs what is missing and, on first run,
+seeds `server/storage/` from `../Excel Data/`. Keep `.bat` files CRLF (enforced by `.gitattributes`) and
+ASCII-only; always `call npm ...` inside a batch file.
 
 There is no test runner, linter, or formatter configured. The `etl/*.mjs` files are **not** a
 test suite — they are throwaway Puppeteer scripts (named `check_*`, `crop_*`, `donut_*`,

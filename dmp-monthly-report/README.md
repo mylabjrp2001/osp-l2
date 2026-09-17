@@ -18,7 +18,29 @@ dmp-monthly-report/
     └── pages/       Page02 … Page22 (21 หน้า ตรงกับ PDF)
 ```
 
-## เริ่มใช้
+## รันบน Windows (ดับเบิลคลิก)
+
+ติดตั้งครั้งเดียว:
+1. **Python 3.12** — https://www.python.org/downloads/windows/ · ตอนติดตั้ง**ติ๊ก "Add python.exe to PATH"**
+2. **Node.js LTS** — https://nodejs.org/
+3. เอาโค้ดลงเครื่อง: `git clone git@github.com:mylabjrp2001/osp-l2.git`
+   (หรือกด Code → Download ZIP บน GitHub แล้วแตกไฟล์ — ถ้า Windows เตือน SmartScreen ให้คลิกขวาไฟล์ .bat → Properties → Unblock)
+
+แล้วดับเบิลคลิกที่ root ของโฟลเดอร์:
+
+| ไฟล์ | ใช้เมื่อ | เปิดที่ |
+|---|---|---|
+| **`start.bat`** | ใช้งานรายงาน | http://localhost:8000 (เปิดเบราว์เซอร์ให้เอง) |
+| **`dev.bat`** | แก้โค้ด — แก้ไฟล์แล้วหน้าเว็บอัปเดตเอง | http://localhost:5173 |
+
+- ครั้งแรกใช้เวลาหลายนาที (ติดตั้ง package + สร้างข้อมูล) ครั้งต่อไปไม่กี่วินาที
+- **ข้อมูลตั้งต้น** = ไฟล์ Excel ใน `Excel Data/` (ชุดวันที่ส่งมอบ ข้อมูลถึง 13 ก.ย. 2026) ถูกคัดไป
+  `dmp-monthly-report/server/storage/` ครั้งแรกครั้งเดียว
+- **อัปเดตข้อมูล** = ปุ่ม 📥 Upload Excel บนหน้าเว็บ (ไฟล์ปีเดิมจะแทนที่ของเดิม) — ข้อมูลอยู่ในเครื่องนั้นเท่านั้น
+  ไม่ขึ้น prod · อยากเริ่มใหม่จากชุดตั้งต้น: ลบโฟลเดอร์ `dmp-monthly-report/server/storage/` แล้วรัน `start.bat`
+- ปิดหน้าต่างดำ = ปิดโปรแกรม
+
+## เริ่มใช้ (macOS / Linux)
 
 ```bash
 cd dmp-monthly-report
@@ -127,6 +149,7 @@ cd /srv/apps/osp-l2 && git pull && docker compose up -d --build dmp-report
 
 | วันที่ | สิ่งที่เปลี่ยน |
 |---|---|
+| 2026-09-17 | รันบน Windows แบบดับเบิลคลิก: `start.bat` (ใช้งาน) · `dev.bat` (แก้โค้ด) · `scripts/setup-windows.bat` ติดตั้ง/ข้ามขั้นที่ทำแล้วเอง · `Excel Data/` อัปเดตเป็นชุดปัจจุบัน (2025 + 2026 ถึง 13 ก.ย.) ใช้เป็นข้อมูลตั้งต้น · `npm run dev:server` / `dev:all` รันได้ทั้ง Windows/Mac (`scripts/dev-api.mjs`) · ETL retry ตอนแทนที่ data.json บน Windows · `.gitattributes` บังคับ CRLF ให้ .bat |
 | 2026-09-17 | แก้จาก audit: กราฟ Job per day ช่วงหลายเดือนแยกรายวันจริง (เดิมทับตามวันที่ของเดือน) · เป้า 260/โซน, 86/ทีม คูณตามจำนวนเดือนที่เลือก (หน้า 2, 6–7, 11–18) · ETL: คำนวณ Total Time = REPORT − ACCEPT, กู้ duration ≥ 1 วันที่เคยหาย (เพดาน 30 วัน), ปรับ `pass`→`Pass` · แถบ SLA แยก "รอ Defend" ออกจาก Not Waive · Gantt preset เกิน 1 วันในเวลาไทย · ค่าเริ่มต้นตัวกรอง = เดือนล่าสุดที่มีข้อมูล · Export PDF/PPTX จากหน้าทุกบริษัทได้แล้ว · Present: ลูกศรไม่เปลี่ยนหน้าขณะพิมพ์ · upload ไม่บล็อกผู้ใช้อื่น + กันอัปซ้อน · ตัวกรองห้ามว่าง · `ETL_VERSION` → backend rebuild data.json เองตอนสตาร์ต |
 | 2026-09-16 | ย้ายจาก pm2 บน Mac mini → Docker Compose บน baanmefai `176.80.40.4` · เพิ่ม `Dockerfile` (multi-stage node build → python:3.12-slim) · `compose.yml` ที่ root · `deploy/runbooks/deploy.md` · `.claude/knowledge/gotchas.md` · data ย้ายไป `/srv/data/dmp-report` |
 | 2026-09-16 | เพิ่มเส้น AVG (ReferenceLine) ในกราฟ Job Done per Day หน้า Total Job Overview |

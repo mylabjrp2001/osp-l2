@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import time as _time
 from datetime import datetime, date, time, timedelta
 from pathlib import Path
 
@@ -282,6 +283,20 @@ def transform(raw: list[dict]) -> tuple[list[dict], tuple[str | None, str | None
     return out, (dmin, dmax)
 
 
+def _replace_retrying(src: Path, dst: Path, attempts: int = 20) -> None:
+    """On Windows, replacing a file fails while another handle has it open, e.g. the
+    API streaming data.json to a browser at that moment. Retry for ~5 s instead of
+    failing the upload. (On macOS/Linux the first attempt always succeeds.)"""
+    for i in range(attempts):
+        try:
+            src.replace(dst)
+            return
+        except PermissionError:
+            if i == attempts - 1:
+                raise
+            _time.sleep(0.25)
+
+
 # ---------- Public entry point ----------
 
 def build_data_json(excel_dir: Path, out_path: Path, *, log=print) -> dict:
@@ -327,7 +342,7 @@ def build_data_json(excel_dir: Path, out_path: Path, *, log=print) -> dict:
     tmp = out_path.with_suffix(out_path.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
-    tmp.replace(out_path)
+    _replace_retrying(tmp, out_path)
     log(f"wrote {out_path} ({out_path.stat().st_size/1e6:.2f} MB)")
 
     return {
