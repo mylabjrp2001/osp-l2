@@ -137,3 +137,20 @@ audit รอบหน้าไม่ต้องรายงานซ้ำ:
 `prevMonthRange` แทน `prevPeriod` เดิมที่ใช้ `new Date("YYYY-MM-DD")` ซึ่งอ่านเป็นเวลา UTC
 ในไทย (UTC+7) ให้ผลถูกอยู่แล้ว แต่เขตเวลาที่ช้ากว่า UTC จะได้เดือนก่อนหน้าผิดไป 1 เดือน
 เมื่อวันสุดท้ายของช่วงเป็นวันที่ 1 ของเดือน
+
+## หน้าจอ Windows (scripts/start-windows.ps1)
+
+`start.bat` / `dev.bat` เป็นตัวเรียก PowerShell (`powershell -NoProfile -ExecutionPolicy Bypass -File ...`)
+เพื่อให้มีสี กรอบ และแบนเนอร์ได้ ถ้าเครื่องไม่มี PowerShell (errorlevel 9009) .bat จะตกมาโหมดธรรมดาให้เอง
+
+- **ไฟล์ `.ps1` ต้องมี UTF-8 BOM** — Windows PowerShell 5.1 อ่านไฟล์ที่ไม่มี BOM เป็น ANSI code page
+  ตัวอักษรกรอบ `│ ─ █` จะกลายเป็นขยะ · อย่าใส่ `working-tree-encoding` ใน `.gitattributes`
+  เพราะ git จะปฏิเสธไฟล์ที่มี BOM
+- **ใช้อักขระที่ฟอนต์ Consolas มีเท่านั้น** (cmd รุ่นเก่ายังใช้ฟอนต์นี้): `│ ─ ┌ █ ╗ • · → *` ใช้ได้
+  ส่วน `● › ✖` ไม่มี จะขึ้นเป็นสี่เหลี่ยม
+- ความกว้างกรอบต้องเท่ากันทุกบรรทัด (66 ตัวอักษร) — แก้ศิลปะตัวอักษรแล้ววัดใหม่ด้วย
+- **ห้ามจบไฟล์ด้วย `exit /b 0` เฉย ๆ** หลังรันเซิร์ฟเวอร์ ถ้าเซิร์ฟเวอร์เปิดไม่ติด หน้าต่างจะปิดทันที
+  จนผู้ใช้อ่านไม่ทัน — ต้องมี `Read-Host` / `pause` ปิดท้ายเสมอ
+- ทดสอบไวยากรณ์ .ps1 จาก Mac ได้ด้วย
+  `docker run --rm -v "$PWD/scripts:/s:ro" mcr.microsoft.com/powershell pwsh -NoProfile -Command '...ParseFile...'`
+  (อิมเมจเป็น amd64 รันผ่าน qemu ช้ามาก ใช้ได้แค่ parse ห้ามสั่งอย่างอื่น — `Clear-Host` ทำให้ crash)
