@@ -95,6 +95,9 @@ In dev, `vite.config.js` proxies `/api/*` and `/data.json` to the backend (`DMP_
 - Targets (260 jobs/zone, 86/team) are **per month**: always scale them with `targetForRange()` and build
   per-day charts with `dailyRows()` (both in `src/utils.js`). Never use `toISOString()` for dates — it
   shifts a day back in Bangkok time; use `addDaysISO` / `toISODate`.
+- Shared report rules live in exactly one place: `SLA_PRIORITIES` (Critical + Major) in `src/theme.js`,
+  `lastSixMonths()` and `prevMonthRange()` in `src/utils.js`. Import them; do not re-declare a local copy.
+  What each page *is* allowed to differ on is which filters it skips in `applyFilters(records, f, skip)`.
 - `src/theme.js` is the **single source of domain constants** — `ZONES`, `TEAMS`/`ALL_ZONE_TEAMS`,
   `PRIORITY_ORDER`, the priority color palette, and `MONTHS_EN`/`MONTHS_TH`. Read filters and pages
   off these rather than hardcoding zone/team/priority strings.
